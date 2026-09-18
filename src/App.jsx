@@ -175,9 +175,9 @@ export default function App() {
   }
 
   // Geo-block non-admins outside the store radius
-  if (!isAdmin && (geoStatus === 'denied' || geoStatus === 'error')) {
-    return <GeoBlocked reason={geoStatus} />;
-  }
+  // if (!isAdmin && (geoStatus === 'denied' || geoStatus === 'error')) {
+  //   return <GeoBlocked reason={geoStatus} />;
+  // }
 
   return (
     <div className="min-h-screen bg-gray-50">
