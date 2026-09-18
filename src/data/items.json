@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "name": "Basmati Rice 5kg",
+    "price": 250000,
+    "image": "/images/basmati-rice-5kg.jpg",
+    "category": "Rice"
+  },
+  {
+    "id": 2,
+    "name": "test",
+    "price": 1455,
+    "image": "/images/test.jpg",
+    "category": "frozen"
+  }
+]
