@@ -30,7 +30,8 @@ export default function App() {
 
   const { isAdmin, activateAdmin, deactivateAdmin } = useAdmin();
   const tapLogo = useTapCounter(activateAdmin, 10, 2000);
-  const geoStatus = useGeoCheck();
+  // const geoStatus = useGeoCheck();
+  const geoStatus = 'allowed';
 
   const loadData = async () => {
     try {
@@ -154,9 +155,10 @@ export default function App() {
     setEditing(null);
     await loadData();
   };
+  // (loading || geoStatus === 'checking')
 
   // Loading / geo check screen
-  if (loading || geoStatus === 'checking') {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-gray-500">
         {geoStatus === 'checking'
@@ -187,7 +189,7 @@ export default function App() {
           <h1
             onClick={tapLogo}
             className="text-xl font-bold select-none cursor-default">
-            Price Checker
+            Gitex Co LTD
           </h1>
           {isAdmin && (
             <div className="mt-2 flex items-center justify-center gap-2 text-xs">
