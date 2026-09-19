@@ -13,12 +13,14 @@ export default function AnnouncementBanner({
   isAdmin,
   onChanged,
 }) {
+  // Build tabs array
   const tabs = [];
   if (drops.length > 0)
     tabs.push({ key: 'drops', label: 'Drops', items: drops });
   if (newProducts.length > 0)
     tabs.push({ key: 'new', label: 'New', items: newProducts });
 
+  // ---- ALL HOOKS FIRST ----
   const [activeTab, setActiveTab] = useState(tabs[0]?.key || 'drops');
   const [indexes, setIndexes] = useState({});
   const [extIndex, setExtIndex] = useState(0);
@@ -26,26 +28,23 @@ export default function AnnouncementBanner({
   const [paused, setPaused] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  // Ensure activeTab is valid
+  // Ensure activeTab stays valid
   useEffect(() => {
     if (tabs.length && !tabs.find((t) => t.key === activeTab)) {
       setActiveTab(tabs[0].key);
     }
   }, [tabs.map((t) => t.key).join(','), activeTab]);
 
-  // Reset extension state when active tab or index changes
+  // Reset ext state when tab changes
   useEffect(() => {
     setExtIndex(0);
     setFailed(false);
   }, [activeTab]);
 
   const currentTab = tabs.find((t) => t.key === activeTab) || tabs[0];
-  if (!currentTab) return null;
-
-  const items = currentTab.items;
+  const items = currentTab?.items || [];
   const index = indexes[activeTab] || 0;
-  const safeIndex = Math.min(index, items.length - 1);
-  const change = items[safeIndex];
+  const safeIndex = items.length > 0 ? Math.min(index, items.length - 1) : 0;
 
   // Auto-rotate active tab
   useEffect(() => {
@@ -61,6 +60,10 @@ export default function AnnouncementBanner({
     return () => clearInterval(t);
   }, [activeTab, items.length, paused]);
 
+  // ---- NOW early returns are safe ----
+  if (!currentTab || items.length === 0) return null;
+
+  const change = items[safeIndex];
   const imagePath = `${BASE}images/${change.name}.${EXTENSIONS[extIndex]}`;
   const placeholder = `${BASE}images/placeholder.png`;
 
@@ -115,7 +118,6 @@ export default function AnnouncementBanner({
         onMouseLeave={() => setPaused(false)}
         onTouchStart={() => setPaused(true)}
         onTouchEnd={() => setPaused(false)}>
-        {/* Tabs */}
         {showTabs && (
           <div className="flex border-b bg-gray-50">
             {tabs.map((t) => {
@@ -137,7 +139,6 @@ export default function AnnouncementBanner({
           </div>
         )}
 
-        {/* Content */}
         <div className="flex items-center gap-3 p-3 sm:p-4">
           <div
             key={change.docId + 'img'}
@@ -219,7 +220,6 @@ export default function AnnouncementBanner({
           )}
         </div>
 
-        {/* Dots */}
         {total > 1 && (
           <div className="flex items-center justify-center gap-1.5 pb-2">
             {items.map((_, i) => (
