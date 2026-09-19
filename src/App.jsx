@@ -199,7 +199,7 @@ export default function App() {
     return list;
   }, [query, activeCategory, fuse, items]);
 
-  // Group results by category, alphabetical
+  // Group results by category (alphabetical), sort items A→Z within each group
   const groupedResults = useMemo(() => {
     const groups = {};
     results.forEach((item) => {
@@ -211,7 +211,9 @@ export default function App() {
       .sort((a, b) => a.localeCompare(b))
       .map((cat) => ({
         category: cat,
-        items: groups[cat],
+        items: groups[cat].sort((a, b) =>
+          (a.name || '').localeCompare(b.name || ''),
+        ),
       }));
   }, [results]);
 
@@ -299,9 +301,10 @@ export default function App() {
           <div className="space-y-8">
             {groupedResults.map((group) => (
               <section key={group.category}>
-                {/* Category header */}
+                {/* Category header — centered with separator on both sides */}
                 <div className="flex items-center gap-3 mb-4">
-                  <h2 className="text-lg sm:text-xl font-bold text-brand whitespace-nowrap">
+                  <div className="flex-1 h-px bg-gray-200" />
+                  <h2 className="text-lg sm:text-xl font-bold text-brand whitespace-nowrap text-center">
                     {getCategoryIcon(group.category)} {group.category}
                   </h2>
                   <span className="text-xs sm:text-sm text-gray-400 font-medium whitespace-nowrap">
@@ -310,7 +313,7 @@ export default function App() {
                   <div className="flex-1 h-px bg-gray-200" />
                 </div>
 
-                {/* Grid of items in this category */}
+                {/* Grid of items in this category (alphabetical) */}
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
                   {group.items.map((item) => (
                     <ItemCard
