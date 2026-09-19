@@ -199,22 +199,43 @@ export default function App() {
     return list;
   }, [query, activeCategory, fuse, items]);
 
-  // Group results by category (alphabetical), sort items A→Z within each group
+  // Group results by category → then by brand (first word of name)
   const groupedResults = useMemo(() => {
-    const groups = {};
+    const categoryGroups = {};
     results.forEach((item) => {
       const cat = item.category || 'Other';
-      if (!groups[cat]) groups[cat] = [];
-      groups[cat].push(item);
+      if (!categoryGroups[cat]) categoryGroups[cat] = [];
+      categoryGroups[cat].push(item);
     });
-    return Object.keys(groups)
+
+    return Object.keys(categoryGroups)
       .sort((a, b) => a.localeCompare(b))
-      .map((cat) => ({
-        category: cat,
-        items: groups[cat].sort((a, b) =>
-          (a.name || '').localeCompare(b.name || ''),
-        ),
-      }));
+      .map((cat) => {
+        // Group by first word of product name (uppercased)
+        const brandGroups = {};
+        categoryGroups[cat].forEach((item) => {
+          const name = (item.name || '').trim();
+          const firstWord = name.split(/\s+/)[0] || 'Other';
+          const brandKey = firstWord.toUpperCase();
+          if (!brandGroups[brandKey]) brandGroups[brandKey] = [];
+          brandGroups[brandKey].push(item);
+        });
+
+        const brands = Object.keys(brandGroups)
+          .sort((a, b) => a.localeCompare(b))
+          .map((brand) => ({
+            brand,
+            items: brandGroups[brand].sort((a, b) =>
+              (a.name || '').localeCompare(b.name || ''),
+            ),
+          }));
+
+        return {
+          category: cat,
+          totalItems: categoryGroups[cat].length,
+          brands,
+        };
+      });
   }, [results]);
 
   const confirmPriceChange = async (newPrice) => {
@@ -298,32 +319,51 @@ export default function App() {
         {results.length === 0 ? (
           <p className="text-center text-gray-500 py-10">No items found</p>
         ) : (
-          <div className="space-y-8">
+          <div className="space-y-10">
             {groupedResults.map((group) => (
               <section key={group.category}>
                 {/* Category header — centered with separator on both sides */}
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="flex-1 h-px bg-gray-200" />
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="flex-1 h-px bg-gray-300" />
                   <h2 className="text-lg sm:text-xl font-bold text-brand whitespace-nowrap text-center">
                     {getCategoryIcon(group.category)} {group.category}
                   </h2>
                   <span className="text-xs sm:text-sm text-gray-400 font-medium whitespace-nowrap">
-                    ({group.items.length})
+                    ({group.totalItems})
                   </span>
-                  <div className="flex-1 h-px bg-gray-200" />
+                  <div className="flex-1 h-px bg-gray-300" />
                 </div>
 
-                {/* Grid of items in this category (alphabetical) */}
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                  {group.items.map((item) => (
-                    <ItemCard
-                      key={item.id}
-                      item={item}
-                      onClick={setSelected}
-                      isAdmin={isAdmin}
-                      onChanged={loadData}
-                      onEditPrice={setEditing}
-                    />
+                {/* Brand subgroups */}
+                <div className="space-y-6">
+                  {group.brands.map((brandGroup) => (
+                    <div key={brandGroup.brand}>
+                      {/* Brand subheader */}
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-1.5 h-5 bg-brand rounded-full" />
+                        <h3 className="text-sm sm:text-base font-bold text-gray-700 uppercase tracking-wide">
+                          {brandGroup.brand}
+                        </h3>
+                        <span className="text-xs text-gray-400 font-medium">
+                          ({brandGroup.items.length})
+                        </span>
+                        <div className="flex-1 h-px bg-gray-200" />
+                      </div>
+
+                      {/* Grid of items in this brand */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                        {brandGroup.items.map((item) => (
+                          <ItemCard
+                            key={item.id}
+                            item={item}
+                            onClick={setSelected}
+                            isAdmin={isAdmin}
+                            onChanged={loadData}
+                            onEditPrice={setEditing}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </section>
