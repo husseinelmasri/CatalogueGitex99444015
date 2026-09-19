@@ -13,7 +13,7 @@ import SearchBar from './components/SearchBar';
 import ItemCard from './components/ItemCard';
 import ItemModal from './components/ItemModal';
 import PriceEditModal from './components/PriceEditModal';
-import PriceChangeBanner from './components/PriceChangeBanner';
+import AnnouncementBanner from './components/AnnouncementBanner';
 import GeoBlocked from './components/GeoBlocked';
 import { useAdmin } from './hooks/useAdmin';
 import { useTapCounter } from './hooks/useTapCounter';
@@ -26,7 +26,10 @@ export default function App() {
   const [error, setError] = useState(null);
   const [selected, setSelected] = useState(null);
   const [editing, setEditing] = useState(null);
-  const [announcements, setAnnouncements] = useState([]);
+  const [announcements, setAnnouncements] = useState({
+    drops: [],
+    newProducts: [],
+  });
 
   const { isAdmin, activateAdmin, deactivateAdmin } = useAdmin();
   const tapLogo = useTapCounter(activateAdmin, 10, 2000);
@@ -55,6 +58,26 @@ export default function App() {
             };
           }
         });
+      } catch {}
+      // Fetch new products
+      let newProducts = {};
+      let newList = [];
+      try {
+        const newSnap = await getDocs(collection(db, 'catalogue_new_products'));
+        newSnap.docs.forEach((d) => {
+          const data = d.data();
+          if (data.productId) {
+            newProducts[data.productId] = { docId: d.id };
+            newList.push({
+              docId: d.id,
+              productId: data.productId,
+              name: data.name,
+              price: data.price,
+              at: data.createdAt?.toDate?.() ?? new Date(0),
+            });
+          }
+        });
+        newList.sort((a, b) => b.at - a.at);
       } catch {}
 
       let anns = [];
@@ -99,12 +122,17 @@ export default function App() {
             archived: p.archived,
             promo: promoMap[d.id] || null,
             outOfStock: outOfStock[d.id] || null,
+            isNew: !!newProducts[d.id],
+            newDocId: newProducts[d.id]?.docId || null,
           };
         })
         .filter((item) => item.name && !item.archived);
 
       setItems(data);
-      setAnnouncements(anns);
+      setAnnouncements({
+        drops: anns,
+        newProducts: newList,
+      });
     } catch (err) {
       console.error('Firebase error:', err);
       setError(err.message);
@@ -207,13 +235,12 @@ export default function App() {
 
         <SearchBar query={query} setQuery={setQuery} />
       </div>
-
-      <PriceChangeBanner
-        changes={announcements}
+      <AnnouncementBanner
+        drops={announcements.drops}
+        newProducts={announcements.newProducts}
         isAdmin={isAdmin}
         onChanged={loadData}
       />
-
       <main className="p-4 mx-auto max-w-7xl">
         {results.length === 0 ? (
           <p className="text-center text-gray-500 py-10">No items found</p>

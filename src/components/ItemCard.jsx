@@ -3,7 +3,6 @@ import {
   doc,
   setDoc,
   deleteDoc,
-  updateDoc,
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -11,6 +10,7 @@ import { formatPrice } from '../utils/formatPrice';
 import { getPromo } from '../utils/promo';
 
 const EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'JPG', 'JPEG', 'PNG'];
+const BASE = import.meta.env.BASE_URL;
 
 export default function ItemCard({
   item,
@@ -22,17 +22,20 @@ export default function ItemCard({
   const [extIndex, setExtIndex] = useState(0);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [busyNew, setBusyNew] = useState(false);
 
-  const imagePath = `/images/${item.name}.${EXTENSIONS[extIndex]}`;
+  const imagePath = `${BASE}images/${item.name}.${EXTENSIONS[extIndex]}`;
+  const placeholder = `${BASE}images/placeholder.png`;
   const promo = getPromo(item);
   const isOut = !!item.outOfStock;
+  const isNew = !!item.isNew;
 
   const handleError = (e) => {
     if (extIndex < EXTENSIONS.length - 1) {
       setExtIndex(extIndex + 1);
     } else {
       setFailed(true);
-      e.target.src = '/images/placeholder.png';
+      e.target.src = placeholder;
     }
   };
 
@@ -60,6 +63,29 @@ export default function ItemCard({
     }
   };
 
+  const toggleNew = async (e) => {
+    e.stopPropagation();
+    setBusyNew(true);
+    try {
+      if (isNew && item.newDocId) {
+        await deleteDoc(doc(db, 'catalogue_new_products', item.newDocId));
+      } else {
+        await setDoc(doc(db, 'catalogue_new_products', item.id), {
+          productId: item.id,
+          name: item.name,
+          price: item.price,
+          createdAt: serverTimestamp(),
+        });
+      }
+      await onChanged?.();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update new status.');
+    } finally {
+      setBusyNew(false);
+    }
+  };
+
   const openDiscount = (e) => {
     e.stopPropagation();
     onEditPrice(item);
@@ -72,7 +98,7 @@ export default function ItemCard({
         className="flex flex-col rounded-lg border bg-white p-2 shadow-sm hover:shadow-md transition text-left w-full">
         <div className="relative aspect-square w-full overflow-hidden rounded-md bg-white flex items-center justify-center">
           <img
-            src={failed ? '/images/placeholder.png' : imagePath}
+            src={failed ? placeholder : imagePath}
             alt={item.name}
             loading="lazy"
             className={`max-h-full max-w-full object-contain transition ${
@@ -84,6 +110,12 @@ export default function ItemCard({
           {promo && !isOut && (
             <span className="absolute top-2 left-2 rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white shadow">
               -{promo.percent}%
+            </span>
+          )}
+
+          {isNew && !isOut && (
+            <span className="absolute top-2 right-2 rounded-full bg-blue-600 px-2 py-0.5 text-xs font-bold text-white shadow">
+              NEW
             </span>
           )}
 
@@ -136,10 +168,24 @@ export default function ItemCard({
             }`}>
             {busy ? '...' : isOut ? 'Mark In' : 'Mark Out'}
           </button>
+
           <button
             onClick={openDiscount}
             className="rounded-full bg-brand px-2.5 py-1 text-[10px] sm:text-xs font-bold text-white shadow-lg hover:opacity-90">
             Discount
+          </button>
+
+          <button
+            onClick={toggleNew}
+            disabled={busyNew}
+            className={`rounded-full px-2.5 py-1 text-[10px] sm:text-xs font-bold shadow-lg transition ${
+              busyNew
+                ? 'bg-gray-400 text-white'
+                : isNew
+                  ? 'bg-blue-800 text-white hover:bg-blue-900'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}>
+            {busyNew ? '...' : isNew ? 'Unmark New' : 'Mark New'}
           </button>
         </div>
       )}
