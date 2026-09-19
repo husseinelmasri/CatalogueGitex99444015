@@ -19,6 +19,7 @@ import GeoBlocked from './components/GeoBlocked';
 import { useAdmin } from './hooks/useAdmin';
 import { useTapCounter } from './hooks/useTapCounter';
 import { useGeoCheck } from './hooks/useGeoCheck';
+import LoadingScreen from './components/LoadingScreen';
 
 export default function App() {
   const [items, setItems] = useState([]);
@@ -196,13 +197,7 @@ export default function App() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-gray-500">
-        {geoStatus === 'checking'
-          ? 'Checking your location...'
-          : 'Loading items...'}
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (error) {
