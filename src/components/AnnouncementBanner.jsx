@@ -16,9 +16,9 @@ export default function AnnouncementBanner({
   // Build tabs array
   const tabs = [];
   if (drops.length > 0)
-    tabs.push({ key: 'drops', label: 'Drops', items: drops });
+    tabs.push({ key: 'drops', label: '⬇️Drops⬇️', items: drops });
   if (newProducts.length > 0)
-    tabs.push({ key: 'new', label: 'New', items: newProducts });
+    tabs.push({ key: 'new', label: '🚨New🚨', items: newProducts });
 
   // ---- ALL HOOKS FIRST ----
   const [activeTab, setActiveTab] = useState(tabs[0]?.key || 'drops');
