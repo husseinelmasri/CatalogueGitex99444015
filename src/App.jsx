@@ -15,16 +15,38 @@ import ItemCard from './components/ItemCard';
 import ItemModal from './components/ItemModal';
 import PriceEditModal from './components/PriceEditModal';
 import AnnouncementBanner from './components/AnnouncementBanner';
-import GeoBlocked from './components/GeoBlocked';
+import LoadingScreen from './components/LoadingScreen';
 import { useAdmin } from './hooks/useAdmin';
 import { useTapCounter } from './hooks/useTapCounter';
-import { useGeoCheck } from './hooks/useGeoCheck';
-import LoadingScreen from './components/LoadingScreen';
+
+// ===== Emoji icons for categories =====
+function getCategoryIcon(name) {
+  const n = (name || '').toLowerCase();
+  if (n === 'all') return '🛍️';
+  if (n.includes('detergent')) return '🧼';
+  if (n.includes('stationery')) return '✏️';
+  if (n.includes('food') || n.includes('essential')) return '🥫';
+  if (n.includes('milk')) return '🐄';
+  if (n.includes('dairy')) return '🥛';
+  if (n.includes('batt')) return '🔋';
+  if (n.includes('other')) return '📦';
+  if (n.includes('spaghetti') || n.includes('pasta')) return '🍝';
+  if (n.includes('pampers') || n.includes('diaper')) return '🍼';
+  if (n.includes('sugar')) return '🍬';
+  if (n.includes('chewing') || n.includes('gum')) return '🍬';
+  if (n.includes('rice') || n.includes('grain')) return '🍚';
+  if (n.includes('flour') || n.includes('baking')) return '🌾';
+  if (n.includes('snack') || n.includes('confection')) return '🍫';
+  if (n.includes('tooth') || n.includes('paste')) return '🪥';
+  if (n.includes('cereal')) return '🥣';
+  if (n.includes('drink') || n.includes('beverage')) return '🥤';
+  return '🏷️';
+}
 
 export default function App() {
-  const [minTimeDone, setMinTimeDone] = useState(false);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [minTimeDone, setMinTimeDone] = useState(false);
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const [error, setError] = useState(null);
@@ -37,8 +59,12 @@ export default function App() {
 
   const { isAdmin, activateAdmin, deactivateAdmin } = useAdmin();
   const tapLogo = useTapCounter(activateAdmin, 10, 2000);
-  // const geoStatus = useGeoCheck();
-  const geoStatus = 'allowed';
+
+  // Minimum splash duration so the loading animation always completes
+  useEffect(() => {
+    const t = setTimeout(() => setMinTimeDone(true), 2500);
+    return () => clearTimeout(t);
+  }, []);
 
   const loadData = async () => {
     try {
@@ -149,10 +175,6 @@ export default function App() {
   useEffect(() => {
     loadData();
   }, []);
-  useEffect(() => {
-    const t = setTimeout(() => setMinTimeDone(true), 2500);
-    return () => clearTimeout(t);
-  }, []);
 
   const fuse = useMemo(
     () =>
@@ -176,6 +198,22 @@ export default function App() {
     }
     return list;
   }, [query, activeCategory, fuse, items]);
+
+  // Group results by category, alphabetical
+  const groupedResults = useMemo(() => {
+    const groups = {};
+    results.forEach((item) => {
+      const cat = item.category || 'Other';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(item);
+    });
+    return Object.keys(groups)
+      .sort((a, b) => a.localeCompare(b))
+      .map((cat) => ({
+        category: cat,
+        items: groups[cat],
+      }));
+  }, [results]);
 
   const confirmPriceChange = async (newPrice) => {
     if (!editing) return;
@@ -201,6 +239,7 @@ export default function App() {
     await loadData();
   };
 
+  // Show splash until BOTH data loaded AND minimum time passed
   if (loading || !minTimeDone) {
     return <LoadingScreen />;
   }
@@ -213,14 +252,9 @@ export default function App() {
     );
   }
 
-  // Geo-block disabled for now
-  // if (!isAdmin && (geoStatus === 'denied' || geoStatus === 'error')) {
-  //   return <GeoBlocked reason={geoStatus} />;
-  // }
-
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Sticky header + search bar in one block */}
+      {/* Sticky header + search bar */}
       <div className="sticky top-0 z-40 shadow-md">
         <header className="bg-brand px-4 pt-5 pb-2 text-center text-white">
           <h1
@@ -262,23 +296,43 @@ export default function App() {
         {results.length === 0 ? (
           <p className="text-center text-gray-500 py-10">No items found</p>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-            {results.map((item) => (
-              <ItemCard
-                key={item.id}
-                item={item}
-                onClick={setSelected}
-                isAdmin={isAdmin}
-                onChanged={loadData}
-                onEditPrice={setEditing}
-              />
+          <div className="space-y-8">
+            {groupedResults.map((group) => (
+              <section key={group.category}>
+                {/* Category header */}
+                <div className="flex items-center gap-3 mb-4">
+                  <h2 className="text-lg sm:text-xl font-bold text-brand whitespace-nowrap">
+                    {getCategoryIcon(group.category)} {group.category}
+                  </h2>
+                  <span className="text-xs sm:text-sm text-gray-400 font-medium whitespace-nowrap">
+                    ({group.items.length})
+                  </span>
+                  <div className="flex-1 h-px bg-gray-200" />
+                </div>
+
+                {/* Grid of items in this category */}
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                  {group.items.map((item) => (
+                    <ItemCard
+                      key={item.id}
+                      item={item}
+                      onClick={setSelected}
+                      isAdmin={isAdmin}
+                      onChanged={loadData}
+                      onEditPrice={setEditing}
+                    />
+                  ))}
+                </div>
+              </section>
             ))}
           </div>
         )}
       </main>
 
       <footer className="p-4 text-center text-xs text-gray-400">
-        {results.length} item{results.length !== 1 ? 's' : ''}
+        {results.length} item{results.length !== 1 ? 's' : ''} •{' '}
+        {groupedResults.length} categor
+        {groupedResults.length !== 1 ? 'ies' : 'y'}
       </footer>
 
       {selected && (
