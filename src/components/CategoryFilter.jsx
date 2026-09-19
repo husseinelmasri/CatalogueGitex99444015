@@ -19,6 +19,7 @@ function getCategoryIcon(name) {
   if (n.includes('snack') || n.includes('confection')) return '🍫';
   if (n.includes('tooth') || n.includes('paste')) return '🪥';
   if (n.includes('cereal')) return '🥣';
+  if (n.includes('frozen')) return '❄️';
   return '🏷️';
 }
 
