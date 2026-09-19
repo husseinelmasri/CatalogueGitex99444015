@@ -22,6 +22,7 @@ import { useGeoCheck } from './hooks/useGeoCheck';
 import LoadingScreen from './components/LoadingScreen';
 
 export default function App() {
+  const [minTimeDone, setMinTimeDone] = useState(false);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -148,6 +149,10 @@ export default function App() {
   useEffect(() => {
     loadData();
   }, []);
+  useEffect(() => {
+    const t = setTimeout(() => setMinTimeDone(true), 2500);
+    return () => clearTimeout(t);
+  }, []);
 
   const fuse = useMemo(
     () =>
@@ -196,7 +201,7 @@ export default function App() {
     await loadData();
   };
 
-  if (loading) {
+  if (loading || !minTimeDone) {
     return <LoadingScreen />;
   }
 

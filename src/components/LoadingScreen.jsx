@@ -11,15 +11,25 @@ const WORDS = [
 
 export default function LoadingScreen() {
   const [visible, setVisible] = useState(0);
+  const [fadingOut, setFadingOut] = useState(false);
 
   useEffect(() => {
-    if (visible >= WORDS.length) return;
+    if (visible >= WORDS.length) {
+      // All words revealed → wait a beat, then fade out
+      const t = setTimeout(() => setFadingOut(true), 500);
+      return () => clearTimeout(t);
+    }
     const t = setTimeout(() => setVisible((v) => v + 1), 300);
     return () => clearTimeout(t);
   }, [visible]);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-brand px-6 text-white relative overflow-hidden">
+    <div
+      className="min-h-screen flex flex-col items-center justify-center bg-brand px-6 text-white relative overflow-hidden"
+      style={{
+        opacity: fadingOut ? 0 : 1,
+        transition: 'opacity 0.5s ease-out',
+      }}>
       {/* Soft radial glow behind text */}
       <div
         className="absolute inset-0 pointer-events-none"
@@ -29,7 +39,7 @@ export default function LoadingScreen() {
         }}
       />
 
-      {/* Tagline */}
+      {/* Tagline — word by word */}
       <div className="relative flex flex-wrap justify-center gap-x-3 gap-y-2 max-w-lg text-center">
         {WORDS.map((word, i) => (
           <span
@@ -69,7 +79,7 @@ export default function LoadingScreen() {
         ))}
       </div>
 
-      {/* Shop name beneath */}
+      {/* Shop name */}
       <p
         className="mt-6 text-sm text-white/60 tracking-[0.3em] font-medium"
         style={{
