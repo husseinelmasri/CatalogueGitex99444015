@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import SearchBar from './components/SearchBar';
+import CategoryFilter from './components/CategoryFilter';
 import ItemCard from './components/ItemCard';
 import ItemModal from './components/ItemModal';
 import PriceEditModal from './components/PriceEditModal';
@@ -23,6 +24,7 @@ export default function App() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState('All');
   const [error, setError] = useState(null);
   const [selected, setSelected] = useState(null);
   const [editing, setEditing] = useState(null);
@@ -59,7 +61,7 @@ export default function App() {
           }
         });
       } catch {}
-      // Fetch new products
+
       let newProducts = {};
       let newList = [];
       try {
@@ -119,6 +121,7 @@ export default function App() {
             id: d.id,
             name: p.name,
             price: p.price,
+            category: p.category || 'Other',
             archived: p.archived,
             promo: promoMap[d.id] || null,
             outOfStock: outOfStock[d.id] || null,
@@ -155,10 +158,18 @@ export default function App() {
     [items],
   );
 
+  const categories = useMemo(() => {
+    const set = new Set(items.map((i) => i.category).filter(Boolean));
+    return Array.from(set).sort();
+  }, [items]);
+
   const results = useMemo(() => {
-    if (!query.trim()) return items;
-    return fuse.search(query).map((r) => r.item);
-  }, [query, fuse]);
+    let list = query.trim() ? fuse.search(query).map((r) => r.item) : items;
+    if (activeCategory !== 'All') {
+      list = list.filter((i) => i.category === activeCategory);
+    }
+    return list;
+  }, [query, activeCategory, fuse, items]);
 
   const confirmPriceChange = async (newPrice) => {
     if (!editing) return;
@@ -183,9 +194,7 @@ export default function App() {
     setEditing(null);
     await loadData();
   };
-  // (loading || geoStatus === 'checking')
 
-  // Loading / geo check screen
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-gray-500">
@@ -204,7 +213,7 @@ export default function App() {
     );
   }
 
-  // Geo-block non-admins outside the store radius
+  // Geo-block disabled for now
   // if (!isAdmin && (geoStatus === 'denied' || geoStatus === 'error')) {
   //   return <GeoBlocked reason={geoStatus} />;
   // }
@@ -235,12 +244,20 @@ export default function App() {
 
         <SearchBar query={query} setQuery={setQuery} />
       </div>
+
+      <CategoryFilter
+        categories={categories}
+        active={activeCategory}
+        setActive={setActiveCategory}
+      />
+
       <AnnouncementBanner
         drops={announcements.drops}
         newProducts={announcements.newProducts}
         isAdmin={isAdmin}
         onChanged={loadData}
       />
+
       <main className="p-4 mx-auto max-w-7xl">
         {results.length === 0 ? (
           <p className="text-center text-gray-500 py-10">No items found</p>

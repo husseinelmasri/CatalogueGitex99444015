@@ -2,8 +2,8 @@ export default function CategoryFilter({ categories, active, setActive }) {
   const allCategories = ['All', ...categories];
 
   return (
-    <div className="bg-white border-b overflow-x-auto">
-      <div className="flex gap-2 px-4 py-3 max-w-2xl mx-auto">
+    <div className="sticky top-[110px] z-30 bg-white border-b shadow-sm">
+      <div className="flex gap-2 px-4 py-3 overflow-x-auto max-w-7xl mx-auto scrollbar-hide">
         {allCategories.map((cat) => {
           const isActive = active === cat;
           return (
