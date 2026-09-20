@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Fuse from 'fuse.js';
 import {
   collection,
@@ -6,6 +6,8 @@ import {
   doc,
   updateDoc,
   addDoc,
+  deleteDoc,
+  setDoc,
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
@@ -16,6 +18,7 @@ import ItemModal from './components/ItemModal';
 import PriceEditModal from './components/PriceEditModal';
 import AnnouncementBanner from './components/AnnouncementBanner';
 import LoadingScreen from './components/LoadingScreen';
+import SkeletonCategorySection from './components/SkeletonCategorySection';
 import { useAdmin } from './hooks/useAdmin';
 import { useTapCounter } from './hooks/useTapCounter';
 
@@ -23,6 +26,7 @@ import { useTapCounter } from './hooks/useTapCounter';
 function getCategoryIcon(name) {
   const n = (name || '').toLowerCase();
   if (n === 'all') return '🛍️';
+  if (n === 'out of stock') return '🚫';
   if (n.includes('detergent')) return '🧼';
   if (n.includes('stationery')) return '✏️';
   if (n.includes('food') || n.includes('essential')) return '🥫';
@@ -43,10 +47,13 @@ function getCategoryIcon(name) {
   return '🏷️';
 }
 
+const OUT_OF_STOCK_KEY = 'Out of Stock';
+
 export default function App() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [minTimeDone, setMinTimeDone] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(false);
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const [error, setError] = useState(null);
@@ -57,14 +64,53 @@ export default function App() {
     newProducts: [],
   });
 
+  // Sub-group word management (admin)
+  const [subgroupWords, setSubgroupWords] = useState([]);
+  const [newWordInput, setNewWordInput] = useState('');
+  const [wordBusy, setWordBusy] = useState(false);
+
+  // Header height measurement (for sticky category bar)
+  const headerRef = useRef(null);
+  const [headerHeight, setHeaderHeight] = useState(110);
+
+  // Skip the very first render for the skeleton trigger
+  const firstRenderRef = useRef(true);
+
   const { isAdmin, activateAdmin, deactivateAdmin } = useAdmin();
   const tapLogo = useTapCounter(activateAdmin, 10, 2000);
 
-  // Minimum splash duration so the loading animation always completes
   useEffect(() => {
     const t = setTimeout(() => setMinTimeDone(true), 2500);
     return () => clearTimeout(t);
   }, []);
+
+  // Measure header height (adjusts when admin mode toggles)
+  useEffect(() => {
+    const measure = () => {
+      if (headerRef.current) {
+        setHeaderHeight(headerRef.current.offsetHeight);
+      }
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    const t = setTimeout(measure, 120);
+    return () => {
+      window.removeEventListener('resize', measure);
+      clearTimeout(t);
+    };
+  }, [isAdmin]);
+
+  // Show skeleton briefly when the user switches category
+  // (Not on the very first load — the splash screen handles that)
+  useEffect(() => {
+    if (firstRenderRef.current) {
+      firstRenderRef.current = false;
+      return;
+    }
+    setLoadingProducts(true);
+    const t = setTimeout(() => setLoadingProducts(false), 300);
+    return () => clearTimeout(t);
+  }, [activeCategory]);
 
   const loadData = async () => {
     try {
@@ -108,6 +154,19 @@ export default function App() {
           }
         });
         newList.sort((a, b) => b.at - a.at);
+      } catch {}
+
+      let words = [];
+      try {
+        const wordsSnap = await getDocs(
+          collection(db, 'catalogue_subgroup_words'),
+        );
+        words = wordsSnap.docs.map((d) => ({
+          docId: d.id,
+          word: (d.data().word || '').toLowerCase(),
+          displayName:
+            d.data().displayName || (d.data().word || '').toUpperCase(),
+        }));
       } catch {}
 
       let anns = [];
@@ -160,6 +219,7 @@ export default function App() {
         .filter((item) => item.name && !item.archived);
 
       setItems(data);
+      setSubgroupWords(words);
       setAnnouncements({
         drops: anns,
         newProducts: newList,
@@ -186,12 +246,30 @@ export default function App() {
     [items],
   );
 
+  const outOfStockCount = useMemo(
+    () => items.filter((i) => i.outOfStock).length,
+    [items],
+  );
+
   const categories = useMemo(() => {
     const set = new Set(items.map((i) => i.category).filter(Boolean));
-    return Array.from(set).sort();
-  }, [items]);
+    const arr = Array.from(set).sort();
+    if (outOfStockCount > 0) {
+      arr.push(OUT_OF_STOCK_KEY);
+    }
+    return arr;
+  }, [items, outOfStockCount]);
 
   const results = useMemo(() => {
+    if (activeCategory === OUT_OF_STOCK_KEY) {
+      let list = items.filter((i) => i.outOfStock);
+      if (query.trim()) {
+        const q = query.trim().toLowerCase();
+        list = list.filter((i) => (i.name || '').toLowerCase().includes(q));
+      }
+      return list;
+    }
+
     let list = query.trim() ? fuse.search(query).map((r) => r.item) : items;
     if (activeCategory !== 'All') {
       list = list.filter((i) => i.category === activeCategory);
@@ -199,23 +277,127 @@ export default function App() {
     return list;
   }, [query, activeCategory, fuse, items]);
 
-  // Group results by category, alphabetical — and sort items A→Z inside each group
+  // Group results by category
   const groupedResults = useMemo(() => {
-    const groups = {};
+    const categoryGroups = {};
     results.forEach((item) => {
       const cat = item.category || 'Other';
-      if (!groups[cat]) groups[cat] = [];
-      groups[cat].push(item);
+      if (!categoryGroups[cat]) categoryGroups[cat] = [];
+      categoryGroups[cat].push(item);
     });
-    return Object.keys(groups)
+
+    return Object.keys(categoryGroups)
       .sort((a, b) => a.localeCompare(b))
-      .map((cat) => ({
-        category: cat,
-        items: groups[cat].sort((a, b) =>
+      .map((cat) => {
+        const catItems = categoryGroups[cat];
+
+        const showSubgroups =
+          activeCategory !== 'All' && activeCategory !== OUT_OF_STOCK_KEY;
+
+        if (!showSubgroups) {
+          return {
+            category: cat,
+            totalItems: catItems.length,
+            subgroups: [],
+            flat: [...catItems].sort((a, b) =>
+              (a.name || '').localeCompare(b.name || ''),
+            ),
+          };
+        }
+
+        const usedItems = new Set();
+        const subgroupBuckets = {};
+
+        subgroupWords.forEach(({ word, displayName }) => {
+          catItems.forEach((item) => {
+            if (usedItems.has(item.id)) return;
+            const lowerName = (item.name || '').toLowerCase();
+            if (lowerName.includes(word)) {
+              const key = displayName.toUpperCase();
+              if (!subgroupBuckets[key]) subgroupBuckets[key] = [];
+              subgroupBuckets[key].push(item);
+              usedItems.add(item.id);
+            }
+          });
+        });
+
+        const ungrouped = catItems.filter((i) => !usedItems.has(i.id));
+
+        const subgroups = Object.keys(subgroupBuckets)
+          .sort((a, b) => a.localeCompare(b))
+          .map((sg) => ({
+            subgroup: sg,
+            items: subgroupBuckets[sg].sort((a, b) =>
+              (a.name || '').localeCompare(b.name || ''),
+            ),
+          }));
+
+        const sortedUngrouped = [...ungrouped].sort((a, b) =>
           (a.name || '').localeCompare(b.name || ''),
-        ),
-      }));
-  }, [results]);
+        );
+
+        return {
+          category: cat,
+          totalItems: catItems.length,
+          subgroups,
+          flat: sortedUngrouped,
+        };
+      });
+  }, [results, activeCategory, subgroupWords]);
+
+  // Admin: add a sub-group word
+  const handleAddWord = async () => {
+    const word = newWordInput.trim();
+    if (!word) return;
+
+    const exists = subgroupWords.some((w) => w.word === word.toLowerCase());
+    if (exists) {
+      alert('This word is already registered.');
+      return;
+    }
+
+    setWordBusy(true);
+    try {
+      const displayName = word.toUpperCase();
+      const docRef = doc(collection(db, 'catalogue_subgroup_words'));
+      await setDoc(docRef, {
+        word: word.toLowerCase(),
+        displayName,
+        createdAt: serverTimestamp(),
+      });
+      setSubgroupWords((prev) => [
+        ...prev,
+        { docId: docRef.id, word: word.toLowerCase(), displayName },
+      ]);
+      setNewWordInput('');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save word.');
+    } finally {
+      setWordBusy(false);
+    }
+  };
+
+  // Admin: remove a sub-group word
+  const handleRemoveWord = async (docId, displayName) => {
+    if (
+      !window.confirm(
+        `Remove "${displayName}" from sub-groups?\n\nProducts will stay in the catalogue — they just won't be grouped under this word anymore.`,
+      )
+    ) {
+      return;
+    }
+    setWordBusy(true);
+    try {
+      await deleteDoc(doc(db, 'catalogue_subgroup_words', docId));
+      setSubgroupWords((prev) => prev.filter((w) => w.docId !== docId));
+    } catch (err) {
+      console.error(err);
+      alert('Failed to remove word.');
+    } finally {
+      setWordBusy(false);
+    }
+  };
 
   const confirmPriceChange = async (newPrice) => {
     if (!editing) return;
@@ -241,7 +423,7 @@ export default function App() {
     await loadData();
   };
 
-  // Show splash until BOTH data loaded AND minimum time passed
+  // FIRST LOAD ONLY → splash screen
   if (loading || !minTimeDone) {
     return <LoadingScreen />;
   }
@@ -256,8 +438,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Sticky header + search bar */}
-      <div className="sticky top-0 z-40 shadow-md">
+      <div ref={headerRef} className="sticky top-0 z-40 shadow-md">
         <header className="bg-brand px-4 pt-5 pb-2 text-center text-white">
           <h1
             onClick={tapLogo}
@@ -278,6 +459,46 @@ export default function App() {
           )}
         </header>
 
+        {isAdmin && (
+          <div className="bg-purple-600 px-3 py-2 space-y-2">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newWordInput}
+                onChange={(e) => setNewWordInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAddWord();
+                }}
+                placeholder='Type a word (e.g. "couscous")'
+                className="flex-1 rounded-lg px-3 py-1.5 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-white"
+              />
+              <button
+                onClick={handleAddWord}
+                disabled={wordBusy || !newWordInput.trim()}
+                className="rounded-lg bg-white text-purple-700 px-3 py-1.5 text-sm font-bold hover:bg-purple-50 disabled:opacity-50">
+                {wordBusy ? '...' : 'Add'}
+              </button>
+            </div>
+
+            {subgroupWords.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {subgroupWords.map((w) => (
+                  <span
+                    key={w.docId}
+                    className="inline-flex items-center gap-1 bg-white/20 text-white text-xs px-2 py-0.5 rounded-full">
+                    {w.displayName}
+                    <button
+                      onClick={() => handleRemoveWord(w.docId, w.displayName)}
+                      className="text-white/80 hover:text-white font-bold leading-none">
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <SearchBar query={query} setQuery={setQuery} />
       </div>
 
@@ -285,6 +506,8 @@ export default function App() {
         categories={categories}
         active={activeCategory}
         setActive={setActiveCategory}
+        outOfStockCount={outOfStockCount}
+        topOffset={headerHeight}
       />
 
       <AnnouncementBanner
@@ -292,40 +515,95 @@ export default function App() {
         newProducts={announcements.newProducts}
         isAdmin={isAdmin}
         onChanged={loadData}
+        topOffset={headerHeight + 55}
       />
 
       <main className="p-4 mx-auto max-w-7xl">
-        {results.length === 0 ? (
-          <p className="text-center text-gray-500 py-10">No items found</p>
+        {loadingProducts ? (
+          // Skeleton only shows AFTER the app has loaded (never on first load)
+          <div className="space-y-10">
+            <SkeletonCategorySection />
+            <SkeletonCategorySection />
+          </div>
+        ) : results.length === 0 ? (
+          <p className="text-center text-gray-500 py-10">
+            {activeCategory === OUT_OF_STOCK_KEY
+              ? 'No out-of-stock items 🎉'
+              : 'No items found'}
+          </p>
         ) : (
-          <div className="space-y-8">
+          <div className="space-y-10">
             {groupedResults.map((group) => (
               <section key={group.category}>
-                {/* Category header — centered with separator on both sides */}
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="flex-1 h-px bg-gray-200" />
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="flex-1 h-px bg-gray-300" />
                   <h2 className="text-lg sm:text-xl font-bold text-brand whitespace-nowrap text-center">
                     {getCategoryIcon(group.category)} {group.category}
                   </h2>
                   <span className="text-xs sm:text-sm text-gray-400 font-medium whitespace-nowrap">
-                    ({group.items.length})
+                    ({group.totalItems})
                   </span>
-                  <div className="flex-1 h-px bg-gray-200" />
+                  <div className="flex-1 h-px bg-gray-300" />
                 </div>
 
-                {/* Grid of items in this category (alphabetical) */}
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                  {group.items.map((item) => (
-                    <ItemCard
-                      key={item.id}
-                      item={item}
-                      onClick={setSelected}
-                      isAdmin={isAdmin}
-                      onChanged={loadData}
-                      onEditPrice={setEditing}
-                    />
-                  ))}
-                </div>
+                {group.subgroups.length === 0 ? (
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                    {group.flat.map((item) => (
+                      <ItemCard
+                        key={item.id}
+                        item={item}
+                        onClick={setSelected}
+                        isAdmin={isAdmin}
+                        onChanged={loadData}
+                        onEditPrice={setEditing}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {group.subgroups.map((sg) => (
+                      <div key={sg.subgroup}>
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-1.5 h-5 bg-purple-600 rounded-full" />
+                          <h3 className="text-sm sm:text-base font-bold text-gray-700 uppercase tracking-wide">
+                            {sg.subgroup}
+                          </h3>
+                          <span className="text-xs text-gray-400 font-medium">
+                            ({sg.items.length})
+                          </span>
+                          <div className="flex-1 h-px bg-gray-200" />
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                          {sg.items.map((item) => (
+                            <ItemCard
+                              key={item.id}
+                              item={item}
+                              onClick={setSelected}
+                              isAdmin={isAdmin}
+                              onChanged={loadData}
+                              onEditPrice={setEditing}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+
+                    {group.flat.length > 0 && (
+                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                        {group.flat.map((item) => (
+                          <ItemCard
+                            key={item.id}
+                            item={item}
+                            onClick={setSelected}
+                            isAdmin={isAdmin}
+                            onChanged={loadData}
+                            onEditPrice={setEditing}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </section>
             ))}
           </div>

@@ -12,6 +12,7 @@ export default function AnnouncementBanner({
   newProducts,
   isAdmin,
   onChanged,
+  topOffset = 165,
 }) {
   // Build tabs array
   const tabs = [];
@@ -111,7 +112,9 @@ export default function AnnouncementBanner({
   const showTabs = tabs.length > 1;
 
   return (
-    <div className="anim-slide-down sticky top-[165px] z-20 px-3 pt-3">
+    <div
+      className="anim-slide-down sticky z-20 px-3 pt-3"
+      style={{ top: `${topOffset}px` }}>
       <div
         className="anim-pulse-glow mx-auto max-w-3xl rounded-xl border-2 border-red-500 bg-white shadow-lg overflow-hidden"
         onMouseEnter={() => setPaused(true)}

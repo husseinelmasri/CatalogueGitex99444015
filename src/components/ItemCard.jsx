@@ -1,10 +1,5 @@
 import { useState } from 'react';
-import {
-  doc,
-  setDoc,
-  deleteDoc,
-  serverTimestamp,
-} from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { formatPrice } from '../utils/formatPrice';
 import { getPromo } from '../utils/promo';
@@ -95,13 +90,13 @@ export default function ItemCard({
     <div className="relative">
       <button
         onClick={() => onClick(item)}
-        className="flex flex-col rounded-lg border bg-white p-2 shadow-sm hover:shadow-md transition text-left w-full">
+        className="group flex flex-col rounded-lg border bg-white p-2 shadow-sm hover:shadow-md hover:-translate-y-1 transition text-left w-full">
         <div className="relative aspect-square w-full overflow-hidden rounded-md bg-white flex items-center justify-center">
           <img
             src={failed ? placeholder : imagePath}
             alt={item.name}
             loading="lazy"
-            className={`max-h-full max-w-full object-contain transition ${
+            className={`max-h-full max-w-full object-contain transition-transform duration-300 ease-out group-hover:scale-110 ${
               isOut ? 'opacity-30 grayscale' : ''
             }`}
             onError={handleError}

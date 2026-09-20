@@ -1,6 +1,6 @@
 export default function SearchBar({ query, setQuery }) {
   return (
-    <div className="bg-brand px-4 pb-3 pt-1 shadow-md">
+    <div className="bg-brand px-4 pb-3 pt-1">
       <input
         type="text"
         value={query}

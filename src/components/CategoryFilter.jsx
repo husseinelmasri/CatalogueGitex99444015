@@ -1,13 +1,15 @@
 import { useRef } from 'react';
 
-// Emoji map for category names — matched by keyword
+// Emoji icons for categories
 function getCategoryIcon(name) {
-  const n = name.toLowerCase();
+  const n = (name || '').toLowerCase();
   if (n === 'all') return '🛍️';
+  if (n === 'out of stock') return '🚫';
   if (n.includes('detergent')) return '🧼';
   if (n.includes('stationery')) return '✏️';
   if (n.includes('food') || n.includes('essential')) return '🥫';
-  if (n.includes('milk') || n.includes('dairy')) return '🥛';
+  if (n.includes('milk')) return '🐄';
+  if (n.includes('dairy')) return '🥛';
   if (n.includes('batt')) return '🔋';
   if (n.includes('other')) return '📦';
   if (n.includes('spaghetti') || n.includes('pasta')) return '🍝';
@@ -19,11 +21,17 @@ function getCategoryIcon(name) {
   if (n.includes('snack') || n.includes('confection')) return '🍫';
   if (n.includes('tooth') || n.includes('paste')) return '🪥';
   if (n.includes('cereal')) return '🥣';
-  if (n.includes('frozen')) return '❄️';
+  if (n.includes('drink') || n.includes('beverage')) return '🥤';
   return '🏷️';
 }
 
-export default function CategoryFilter({ categories, active, setActive }) {
+export default function CategoryFilter({
+  categories,
+  active,
+  setActive,
+  outOfStockCount = 0,
+  topOffset = 110,
+}) {
   const scrollRef = useRef(null);
   const allCategories = ['All', ...categories];
 
@@ -37,14 +45,16 @@ export default function CategoryFilter({ categories, active, setActive }) {
   };
 
   return (
-    <div className="sticky top-[110px] z-30 bg-white border-b shadow-sm">
+    <div
+      className="sticky z-30 bg-white border-b shadow-sm"
+      style={{ top: `${topOffset}px` }}>
       <div className="relative max-w-7xl mx-auto">
-        {/* Left arrow */}
+        {/* Left arrow (desktop) */}
         <button
           type="button"
           aria-label="Scroll left"
           onClick={() => scroll('left')}
-          className="hidden sm:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 h-9 w-9 items-center justify-center rounded-full bg-white shadow-md border border-gray-200 text-gray-700 hover:bg-gray-50">
+          className="hidden sm:flex absolute left-1 top-1/2 -translate-y-1/2 z-10 h-9 w-9 items-center justify-center rounded-full bg-white shadow-md border border-gray-200 text-gray-700 hover:bg-gray-50">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
@@ -61,33 +71,57 @@ export default function CategoryFilter({ categories, active, setActive }) {
         {/* Scrollable row */}
         <div
           ref={scrollRef}
-          className="flex gap-2 px-4 py-3 overflow-x-auto scrollbar-hide scroll-smooth">
+          className="flex gap-2 px-4 sm:px-14 py-3 overflow-x-auto scrollbar-hide scroll-smooth">
           {allCategories.map((cat) => {
             const isActive = active === cat;
+            const isOutOfStock = cat === 'Out of Stock';
+            const isAll = cat === 'All';
+
+            let baseClass = '';
+            if (isOutOfStock) {
+              baseClass = isActive
+                ? 'bg-red-600 text-white border-2 border-red-700'
+                : 'bg-red-50 text-red-700 border-2 border-red-200 hover:bg-red-100';
+            } else {
+              baseClass = isActive
+                ? 'bg-brand text-white border-2 border-brand'
+                : 'bg-gray-100 text-gray-700 border-2 border-gray-100 hover:bg-gray-200';
+            }
+
             return (
               <button
                 key={cat}
                 onClick={() => setActive(cat)}
-                className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${
-                  isActive
-                    ? 'bg-brand text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}>
+                className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${baseClass}`}>
                 <span className="text-base leading-none">
                   {getCategoryIcon(cat)}
                 </span>
                 <span>{cat}</span>
+                {isOutOfStock && (
+                  <span
+                    className={`ml-1 text-xs font-bold ${
+                      isActive ? 'text-white' : 'text-red-700'
+                    }`}>
+                    ({outOfStockCount})
+                  </span>
+                )}
+                {isAll && (
+                  <span
+                    className={`ml-1 text-xs font-bold ${
+                      isActive ? 'text-white' : 'text-gray-500'
+                    }`}></span>
+                )}
               </button>
             );
           })}
         </div>
 
-        {/* Right arrow */}
+        {/* Right arrow (desktop) */}
         <button
           type="button"
           aria-label="Scroll right"
           onClick={() => scroll('right')}
-          className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 h-9 w-9 items-center justify-center rounded-full bg-white shadow-md border border-gray-200 text-gray-700 hover:bg-gray-50">
+          className="hidden sm:flex absolute right-1 top-1/2 -translate-y-1/2 z-10 h-9 w-9 items-center justify-center rounded-full bg-white shadow-md border border-gray-200 text-gray-700 hover:bg-gray-50">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
