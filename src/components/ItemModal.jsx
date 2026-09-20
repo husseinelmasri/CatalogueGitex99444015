@@ -276,7 +276,7 @@ export default function ItemModal({ item, onClose }) {
           </p>
           {isTouch && (
             <p className="mt-2 text-xs text-gray-400 text-center">
-              Pinch to zoom • Double-tap to toggle • Drag to pan
+              Pinch to zoom
             </p>
           )}
         </div>
