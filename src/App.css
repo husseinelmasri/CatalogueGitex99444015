@@ -182,3 +182,66 @@
     border-right-color: var(--border);
   }
 }
+/* ===== Red pulse glow (for Drops tab) ===== */
+@keyframes pulseGlowRed {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(220, 38, 38, 0);
+  }
+}
+
+/* ===== Blue pulse glow (for New tab) ===== */
+@keyframes pulseGlowBlue {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(37, 99, 235, 0);
+  }
+}
+
+.anim-pulse-glow-red {
+  animation: pulseGlowRed 1.8s ease-in-out infinite;
+}
+
+.anim-pulse-glow-blue {
+  animation: pulseGlowBlue 1.8s ease-in-out infinite;
+}
+
+/* ===== NEW! tag pop-in effect ===== */
+@keyframes newPop {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.anim-new-pop {
+  animation:
+    newPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    newPulse 1.6s ease-in-out 0.6s infinite;
+}
+
+@keyframes newPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.6);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 6px rgba(37, 99, 235, 0);
+  }
+}

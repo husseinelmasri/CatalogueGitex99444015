@@ -516,6 +516,10 @@ export default function App() {
         isAdmin={isAdmin}
         onChanged={loadData}
         topOffset={headerHeight + 55}
+        onClickItem={(productId) => {
+          const fullItem = items.find((i) => i.id === productId);
+          if (fullItem) setSelected(fullItem);
+        }}
       />
 
       <main className="p-4 mx-auto max-w-7xl">

@@ -13,15 +13,14 @@ export default function AnnouncementBanner({
   isAdmin,
   onChanged,
   topOffset = 165,
+  onClickItem,
 }) {
-  // Build tabs array
   const tabs = [];
   if (drops.length > 0)
-    tabs.push({ key: 'drops', label: '⬇️Drops⬇️', items: drops });
+    tabs.push({ key: 'drops', label: '⬇️Drops⬇️', items: drops, color: 'red' });
   if (newProducts.length > 0)
-    tabs.push({ key: 'new', label: '🚨New🚨', items: newProducts });
+    tabs.push({ key: 'new', label: '🚨New🚨', items: newProducts, color: 'blue' });
 
-  // ---- ALL HOOKS FIRST ----
   const [activeTab, setActiveTab] = useState(tabs[0]?.key || 'drops');
   const [indexes, setIndexes] = useState({});
   const [extIndex, setExtIndex] = useState(0);
@@ -29,14 +28,12 @@ export default function AnnouncementBanner({
   const [paused, setPaused] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  // Ensure activeTab stays valid
   useEffect(() => {
     if (tabs.length && !tabs.find((t) => t.key === activeTab)) {
       setActiveTab(tabs[0].key);
     }
   }, [tabs.map((t) => t.key).join(','), activeTab]);
 
-  // Reset ext state when tab changes
   useEffect(() => {
     setExtIndex(0);
     setFailed(false);
@@ -47,7 +44,6 @@ export default function AnnouncementBanner({
   const index = indexes[activeTab] || 0;
   const safeIndex = items.length > 0 ? Math.min(index, items.length - 1) : 0;
 
-  // Auto-rotate active tab
   useEffect(() => {
     if (items.length <= 1 || paused) return;
     const t = setInterval(() => {
@@ -61,7 +57,6 @@ export default function AnnouncementBanner({
     return () => clearInterval(t);
   }, [activeTab, items.length, paused]);
 
-  // ---- NOW early returns are safe ----
   if (!currentTab || items.length === 0) return null;
 
   const change = items[safeIndex];
@@ -83,7 +78,8 @@ export default function AnnouncementBanner({
     setFailed(false);
   };
 
-  const handleDismiss = async () => {
+  const handleDismiss = async (e) => {
+    e.stopPropagation(); // don't trigger item click
     if (!change.docId) return;
     const label =
       activeTab === 'drops'
@@ -106,17 +102,27 @@ export default function AnnouncementBanner({
     }
   };
 
+  // Click on the banner body → open the item modal
+  const handleBannerClick = () => {
+    if (!change.productId) return;
+    onClickItem?.(change.productId);
+  };
+
   const isDrop = activeTab === 'drops';
   const isDecrease = isDrop && change.newPrice < change.oldPrice;
   const total = items.length;
   const showTabs = tabs.length > 1;
+
+  const borderColor = isDrop ? 'border-red-500' : 'border-blue-500';
+  const glowClass = isDrop ? 'anim-pulse-glow-red' : 'anim-pulse-glow-blue';
 
   return (
     <div
       className="anim-slide-down sticky z-20 px-3 pt-3"
       style={{ top: `${topOffset}px` }}>
       <div
-        className="anim-pulse-glow mx-auto max-w-3xl rounded-xl border-2 border-red-500 bg-white shadow-lg overflow-hidden"
+        className={`${glowClass} mx-auto max-w-3xl rounded-xl border-2 ${borderColor} bg-white shadow-lg overflow-hidden cursor-pointer`}
+        onClick={handleBannerClick}
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
         onTouchStart={() => setPaused(true)}
@@ -125,15 +131,27 @@ export default function AnnouncementBanner({
           <div className="flex border-b bg-gray-50">
             {tabs.map((t) => {
               const active = t.key === activeTab;
+              const isNewTab = t.key === 'new';
               return (
                 <button
                   key={t.key}
-                  onClick={() => setActiveTab(t.key)}
-                  className={`flex-1 px-4 py-2 text-xs sm:text-sm font-bold transition ${
+                  onClick={(e) => {
+                    e.stopPropagation(); // don't trigger modal
+                    setActiveTab(t.key);
+                  }}
+                  className={`relative flex-1 px-4 py-2 text-xs sm:text-sm font-bold transition ${
                     active
-                      ? 'bg-white text-red-600 border-b-2 border-red-500'
+                      ? t.key === 'drops'
+                        ? 'bg-white text-red-600 border-b-2 border-red-500'
+                        : 'bg-white text-blue-600 border-b-2 border-blue-500'
                       : 'text-gray-500 hover:text-gray-700'
                   }`}>
+                  {isNewTab && (
+                    <span className="absolute top-1.5 right-2 flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                    </span>
+                  )}
                   {t.label}
                   <span className="ml-1 text-gray-400">({t.items.length})</span>
                 </button>
@@ -173,6 +191,11 @@ export default function AnnouncementBanner({
                     : 'Price Update'
                   : 'New Product'}
               </span>
+              {!isDrop && (
+                <span className="anim-new-pop ml-1 bg-blue-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow">
+                  NEW!
+                </span>
+              )}
             </div>
             <p className="text-sm sm:text-base font-bold text-gray-900 truncate mt-0.5">
               {change.name}
@@ -228,11 +251,16 @@ export default function AnnouncementBanner({
             {items.map((_, i) => (
               <button
                 key={i}
-                onClick={() => goTo(i)}
+                onClick={(e) => {
+                  e.stopPropagation(); // don't open modal
+                  goTo(i);
+                }}
                 aria-label={`Go to item ${i + 1}`}
                 className={`h-1.5 rounded-full transition-all ${
                   i === safeIndex
-                    ? 'w-6 bg-red-500'
+                    ? isDrop
+                      ? 'w-6 bg-red-500'
+                      : 'w-6 bg-blue-500'
                     : 'w-1.5 bg-gray-300 hover:bg-gray-400'
                 }`}
               />

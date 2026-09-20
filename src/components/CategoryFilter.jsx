@@ -22,6 +22,7 @@ function getCategoryIcon(name) {
   if (n.includes('tooth') || n.includes('paste')) return '🪥';
   if (n.includes('cereal')) return '🥣';
   if (n.includes('drink') || n.includes('beverage')) return '🥤';
+  if (n.includes('frozen')) return '❄️';
   return '🏷️';
 }
 
