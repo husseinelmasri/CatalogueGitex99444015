@@ -635,7 +635,6 @@
 //   );
 // }
 import { useState, useEffect, useMemo, useRef } from 'react';
-import Fuse from 'fuse.js';
 import {
   collection,
   getDocs,
@@ -870,16 +869,6 @@ export default function App() {
     loadData();
   }, []);
 
-  const fuse = useMemo(
-    () =>
-      new Fuse(items, {
-        keys: ['name'],
-        threshold: 0.35,
-        ignoreLocation: true,
-      }),
-    [items],
-  );
-
   const outOfStockCount = useMemo(
     () => items.filter((i) => i.outOfStock).length,
     [items],
@@ -904,12 +893,58 @@ export default function App() {
       return list;
     }
 
-    let list = query.trim() ? fuse.search(query).map((r) => r.item) : items;
+    const searchTerm = query.trim().toLowerCase();
+    let list = items;
+
+    if (searchTerm) {
+      // Split search into words (e.g. "red shoes" -> ["red", "shoes"])
+      const searchWords = searchTerm.split(/\s+/).filter(Boolean);
+
+      // Score every item based on Amazon-style rules
+      const scoredItems = items
+        .map((item) => {
+          const itemName = (item.name || '').toLowerCase();
+          let score = 0;
+          let matchesAllWords = true;
+
+          for (const word of searchWords) {
+            const wordIndex = itemName.indexOf(word);
+
+            if (wordIndex !== -1) {
+              // Word exists. Let's score it based on position.
+              if (itemName === word) {
+                score += 100; // Exact full name match
+              } else if (wordIndex === 0) {
+                score += 50; // Starts with the word (e.g., "Apple" in "Apple Juice")
+              } else if (itemName.includes(` ${word}`)) {
+                score += 30; // Contains the word as a distinct word (e.g., "wood" in "Holly wood")
+              } else {
+                score += 10; // Contains as a substring (e.g., "wood" in "Hollywood")
+              }
+            } else {
+              // If a word from the search is completely missing, it fails
+              matchesAllWords = false;
+              break;
+            }
+          }
+
+          return { item, score, matchesAllWords };
+        })
+        // Keep only items that matched all words, then sort by highest score
+        .filter((res) => res.matchesAllWords && res.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .map((res) => res.item);
+
+      list = scoredItems;
+    }
+
+    // Apply category filter AFTER search
     if (activeCategory !== 'All') {
       list = list.filter((i) => i.category === activeCategory);
     }
+
     return list;
-  }, [query, activeCategory, fuse, items]);
+  }, [query, activeCategory, items]);
 
   // Group results by category
   const groupedResults = useMemo(() => {
